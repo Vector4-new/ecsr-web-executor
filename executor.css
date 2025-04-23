@@ -1,0 +1,43 @@
+body {
+    background-color: #141414;
+}
+
+#source {
+    background-color: #353535;
+
+    scrollbar-color: #666 #222;
+
+    color: #FFF;
+
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: scroll;
+    overflow-y: scroll;
+
+    resize: none;
+
+    width: 30em;
+    height: 17em;
+}
+
+.button-holder {
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.button-holder>button {
+    flex: 1;
+    background-color: #444;
+    color: #FFF;
+    margin: 0 .2em;
+    border-radius: 4px;
+    border: 1px solid black;
+}
+
+.button-holder>button:hover {
+    border-color: skyblue;
+}
+
+.button-holder>button:active {
+    background-color: #777;
+}

@@ -1,0 +1,9 @@
+{
+    "name": "ECS:R Web Client Executor",
+    "description": "A simple web executor for Economy Simulator: Reborn.",
+    "version": "0.0.0",
+    "manifest_version": 3,
+    "action": {
+        "default_popup": "executor.html"
+    }
+}
