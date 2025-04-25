@@ -5800,7 +5800,45 @@ if (Module['noInitialRun']) shouldRunNow = false;
 
 run();
 
+////////////////////////////////////////////
 
+console.log("[Worker] init");
 
+// also writes null
+function WriteString(where, str) {
+  for (let i = 0; i < str.length; i++) {
+    HEAPU8[where + i] = str.charCodeAt(i);
+  }
 
+  HEAPU8[where + str.length] = 0;
+}
 
+function ReadString(where, len) {
+  let result = "";
+
+  for (let i = 0; i < len; i++) {
+    result += String.fromCharCode(HEAPU8[where + i]);
+  }
+
+  return result;
+}
+
+chrome.runtime.onMessage.addListener(({ type, value }, sender, sendResponse) => {
+  if (type === "compile") {
+    const strAddr = Module.asm.malloc(value.length + 1);
+    const lenAddr = Module.asm.malloc(4);
+
+    WriteString(strAddr, value);
+
+    const bytecodeAddr = Module.asm.Compile(strAddr, lenAddr);
+    const bytecode = ReadString(bytecodeAddr, HEAP32[lenAddr >> 2]);
+
+    Module.asm.free(strAddr);
+    Module.asm.free(lenAddr);
+    Module.asm.free(bytecodeAddr);
+
+    sendResponse({
+      bytecode: bytecode
+    });
+  }
+});

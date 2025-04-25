@@ -10,17 +10,26 @@
     },
 
     "permissions": [ "scripting", "tabs" ],
-    "host_permissions": [ "https://ecsr.io/*" ],
+    "host_permissions": [ "https://ecsr.io/WebPlayer*" ],
+
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    },
+
+    "background": {
+        "service_worker": "compiler.js",
+        "type": "module"
+    },
 
     "content_scripts": [
         {
-            "matches": [ "https://ecsr.io/*" ],
+            "matches": [ "https://ecsr.io/WebPlayer*" ],
             "js": [ "messager.js" ],
             "run_at": "document_start"
         },
         {
-            "matches": [ "https://ecsr.io/*" ],
-            "js": [ "inject/memory.js", "inject/instance.js", "inject/main.js" ],
+            "matches": [ "https://ecsr.io/WebPlayer*" ],
+            "js": [ "inject/offsets.js", "inject/memory.js", "inject/instance.js", "inject/lua.js", "inject/main.js" ],
             "world": "MAIN"
         }
     ]

@@ -1,5 +1,7 @@
 "use strict";
 
+console.log("[Memory] init");
+
 const Memory = {
     ReadString: function(address, len) {
         let final = "";

@@ -1,10 +1,9 @@
-// not ref :(
-// $func1944 => lua_getfield
+"use strict";
 
-// FUNCREF :)
-// $func1990 => lua_gettable 
-// $func2004 => lua_pcall
-// $func1984 => lua_pushstring
-// $func1958 => lua_newthread
+console.log("[Main] init");
+
 // const GLOBAL_STATE = ReadU32(possibleSCs[0] + SCRIPT_CONTEXT_GLOBAL_STATE);
 console.log("Hello, world...");
+
+window.addEventListener("compileError", console.log);
+window.addEventListener("execute", console.log);
