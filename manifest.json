@@ -1,11 +1,27 @@
 {
+    "manifest_version": 3,
+
     "name": "ECS:R Web Client Executor",
     "description": "A simple web executor for Economy Simulator: Reborn.",
     "version": "0.0.0",
-    "manifest_version": 3,
+
     "action": { 
         "default_popup": "executor.html"
     },
-    "permissions": [ "activeTab", "scripting", "debugger" ],
-    "host_permissions": [ "https://ecsr.io/*" ]
+
+    "permissions": [ "scripting", "tabs" ],
+    "host_permissions": [ "https://ecsr.io/*" ],
+
+    "content_scripts": [
+        {
+            "matches": [ "https://ecsr.io/*" ],
+            "js": [ "messager.js" ],
+            "run_at": "document_start"
+        },
+        {
+            "matches": [ "https://ecsr.io/*" ],
+            "js": [ "inject/memory.js", "inject/instance.js", "inject/main.js" ],
+            "world": "MAIN"
+        }
+    ]
 }
