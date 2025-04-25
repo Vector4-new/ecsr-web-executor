@@ -15,41 +15,41 @@ const Offsets = {
 
 const Instance = {
     GetName: function(addr) {
-        const ptr = ReadU32(addr + Offsets.INSTANCE_NAME);
+        const ptr = Memory.ReadU32(addr + Offsets.INSTANCE_NAME);
 
         return Memory.ReadStdString(ptr);
     },
 
     GetClassName: function(addr) {
-        const descriptor = ReadU32(addr + Offsets.INSTANCE_DESCRIPTOR);
-        const rbxName = ReadU32(descriptor + Offsets.DESCRIPTOR_NAME);
+        const descriptor = Memory.ReadU32(addr + Offsets.INSTANCE_DESCRIPTOR);
+        const rbxName = Memory.ReadU32(descriptor + Offsets.DESCRIPTOR_NAME);
     
-        return ReadStdString(rbxName + 4);
+        return Memory.ReadStdString(rbxName + 4);
     },
 
     GetParent: function(addr) {
-        return ReadU32(addr + Offsets.INSTANCE_PARENT);
+        return Memory.ReadU32(addr + Offsets.INSTANCE_PARENT);
     },
 
     GetChildren: function(addr) {
         let children = [];
 
-        const vector = ReadU32(addr + INSTANCE_CHILDREN);
+        const vector = Memory.ReadU32(addr + INSTANCE_CHILDREN);
     
         if (!vector) {
             return children;
         }
     
-        const begin = ReadU32(vector);
-        const end = ReadU32(vector + 4);
+        const begin = Memory.ReadU32(vector);
+        const end = Memory.ReadU32(vector + 4);
     
         if (!begin || !end) {
             return children;
         }
     
         // * 2 for shared_ptr
-        for (let i = begin; i < end; i += HEAPU32.BYTES_PER_ELEMENT * 2) {
-            children.push(ReadU32(i));
+        for (let i = begin; i < end; i += GROWABLE_HEAP_U32().BYTES_PER_ELEMENT * 2) {
+            children.push(Memory.ReadU32(i));
         }
     
         return children;
