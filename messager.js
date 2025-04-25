@@ -1,2 +1,4 @@
+"use strict";
+
 // whole purpose is to just pass messages back and forth between exec and window...
 console.log("Hello, messenger!");
