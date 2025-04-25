@@ -21,7 +21,7 @@ const Lua = {
         cachedPcall: 0,
         cachedNewThread: 0,
 
-        FindFunctionIndex: function(index) {
+        FindFunctionIndex(index) {
             for (let i = 0; i < wasmTable.length; i++) {
                 if (wasmTable.get(i)?.name == index) {
                     return i;
@@ -32,7 +32,7 @@ const Lua = {
         }
     },
 
-    pcall: function(L, nargs, nresults, errfunc) {
+    pcall(L, nargs, nresults, errfunc) {
         if (!Lua.internal.cachedPcall) {
             Lua.internal.cachedPcall = Lua.internal.FindFunctionIndex(Lua.indexes.PCALL);
         }
@@ -40,7 +40,7 @@ const Lua = {
         return wasmImports.invoke_iiiii(Lua.internal.cachedPcall, L, nargs, nresults, errfunc);
     },
 
-    newthread: function(L) {
+    newthread(L) {
         if (!Lua.internal.cachedNewThread) {
             Lua.internal.cachedNewThread = Lua.internal.FindFunctionIndex(Lua.indexes.NEWTHREAD);
         }

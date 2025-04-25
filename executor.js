@@ -43,30 +43,25 @@ async function PushBytecode(bc, source) {
 }
 
 document.getElementById("execute").onclick = async (e) => {
+    if (source.value === undefined || source.value === null || source.value.length == 0 )
+        return;
+
+    const script = `=${GenerateRandomName()}`;
+
     let result = await chrome.runtime.sendMessage({
         type: "compile",
-        value: source.value
+        code: source.value,
+        source: script
     });
 
     if (!result || !result.bytecode) {
         PushError("Unable to get compilation result...");
     }
     else if (result.bytecode.charCodeAt(0) != 0x1B) {
-        // also do error...
-        // i forgot to accept a source name, so we just cut it out...
-        // this is kinda ass bc if you have a ] near the start of your code it breaks it
-        const pos = result.bytecode.search("]");
-        const msg = result.bytecode.substr(pos + 1);
-        
-        const final = GenerateRandomName() + msg;
-
-        console.log("?");
-        PushError(final);
+        PushError(result.bytecode);
     }
     else {
-        console.log("2");
-
-        PushBytecode(result.bytecode, GenerateRandomName());
+        PushBytecode(result.bytecode, script);
     }
 }
 

@@ -5823,17 +5823,20 @@ function ReadString(where, len) {
   return result;
 }
 
-chrome.runtime.onMessage.addListener(({ type, value }, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(({ type, code, source }, sender, sendResponse) => {
   if (type === "compile") {
-    const strAddr = Module.asm.malloc(value.length + 1);
+    const codeAddr = Module.asm.malloc(code.length + 1);
+    const sourceAddr = Module.asm.malloc(source.length + 1);
     const lenAddr = Module.asm.malloc(4);
 
-    WriteString(strAddr, value);
+    WriteString(codeAddr, code);
+    WriteString(sourceAddr, source);
 
-    const bytecodeAddr = Module.asm.Compile(strAddr, lenAddr);
+    const bytecodeAddr = Module.asm.Compile(codeAddr, sourceAddr, lenAddr);
     const bytecode = ReadString(bytecodeAddr, HEAP32[lenAddr >> 2]);
 
-    Module.asm.free(strAddr);
+    Module.asm.free(codeAddr);
+    Module.asm.free(sourceAddr);
     Module.asm.free(lenAddr);
     Module.asm.free(bytecodeAddr);
 

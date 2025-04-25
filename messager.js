@@ -4,7 +4,6 @@
 console.log("[Messager] init");
 
 chrome.runtime.onMessage.addListener(({ type, bytecode, source, error }, sender, sendResponse) => {
-    console.log(type);
     if (type === "error") {
         // "error" is reserved...
         const event = new CustomEvent("compileError", { detail: {
@@ -21,4 +20,24 @@ chrome.runtime.onMessage.addListener(({ type, bytecode, source, error }, sender,
 
         window.dispatchEvent(event);
     }
+});
+
+// loadstring
+window.addEventListener("requestCompile", ({ detail }) => {
+    chrome.runtime.sendMessage({
+        type: "compile",
+        code: detail.code,
+        source: detail.script
+    }).then(data => {
+        console.log(data);
+
+        const event = new CustomEvent("compileResponse", { detail: {
+            id: detail.id,
+            result: data.bytecode
+        }});
+
+        window.dispatchEvent(event);
+    });
+
+    return true;
 });

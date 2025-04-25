@@ -3,24 +3,24 @@
 console.log("[Instance] init");
 
 const Instance = {
-    GetName: function(addr) {
+    GetName(addr) {
         const ptr = Memory.ReadU32(addr + Offsets.INSTANCE_NAME);
 
         return Memory.ReadStdString(ptr);
     },
 
-    GetClassName: function(addr) {
+    GetClassName(addr) {
         const descriptor = Memory.ReadU32(addr + Offsets.INSTANCE_DESCRIPTOR);
         const rbxName = Memory.ReadU32(descriptor + Offsets.DESCRIPTOR_NAME);
     
         return Memory.ReadStdString(rbxName + 4);
     },
 
-    GetParent: function(addr) {
+    GetParent(addr) {
         return Memory.ReadU32(addr + Offsets.INSTANCE_PARENT);
     },
 
-    GetChildren: function(addr) {
+    GetChildren(addr) {
         let children = [];
 
         const vector = Memory.ReadU32(addr + INSTANCE_CHILDREN);
@@ -44,7 +44,7 @@ const Instance = {
         return children;
     },
 
-    DeepPrint: function(addr, indent) {
+    DeepPrint(addr, indent) {
         ident = ident ? ident : 0;
 
         console.log(" ".repeat(indent) + "> 0x" + addr.toString(16).toUpperCase() + ": \"" + InstanceName(addr) + "\" (" + InstanceClassName(addr) + ")");

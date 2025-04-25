@@ -4,6 +4,7 @@ console.log("[Offsets] init");
 
 const Offsets = {
     SCRIPT_CONTEXT_VTABLE: 0x23327C,
+    SCRIPT_CONTEXT_DESCRIPTOR: 0x0033139C,
 
     INSTANCE_NAME: 0x24,
     INSTANCE_PARENT: 0x30,
@@ -12,5 +13,7 @@ const Offsets = {
     
     DESCRIPTOR_NAME: 0x4,
     
-    SCRIPT_CONTEXT_GLOBAL_STATE: 0x50
+    SCRIPT_CONTEXT_GLOBAL_STATE: 0x50,
+
+    LUA_OBJECT_MARKED: 0x4
 };

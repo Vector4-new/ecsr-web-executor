@@ -3,7 +3,7 @@
 console.log("[Memory] init");
 
 const Memory = {
-    ReadString: function(address, len) {
+    ReadString(address, len) {
         let final = "";
 
         if (!len) {
@@ -22,7 +22,7 @@ const Memory = {
         return final;
     },
 
-    ReadStdString: function(address) {
+    ReadStdString(address) {
         const embeddedSize = ReadU8(address + 11);
 
         if (!embeddedSize) {
@@ -35,6 +35,24 @@ const Memory = {
         }
 
         return ReadString(ReadU32(address), ReadU32(address + 4));
+    },
+
+    // allocates and writes
+    AllocateString(str) {
+        const addr = wasmExports.malloc(str.length + 1);
+
+        Memory.WriteString(addr, str);
+
+        return addr;
+    },
+
+    // includes null
+    WriteString(address, str) {
+        for (let i = 0; i < str.length; i++) {
+            Memory.WriteU8(address + i, str.charCodeAt(i));
+        }
+
+        Memory.WriteU8(address + str.length, 0);
     },
 
     ReadU8:   (a) => GROWABLE_HEAP_U8()[a],
