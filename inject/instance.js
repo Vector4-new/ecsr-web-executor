@@ -45,7 +45,7 @@ const Instance = {
     },
 
     DeepPrint(addr, indent) {
-        ident = ident ? ident : 0;
+        indent = indent ? indent : 0;
 
         console.log(" ".repeat(indent) + "> 0x" + addr.toString(16).toUpperCase() + ": \"" + InstanceName(addr) + "\" (" + InstanceClassName(addr) + ")");
     
