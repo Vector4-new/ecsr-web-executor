@@ -25,6 +25,21 @@ const Lua = {
         NEWLSTR: 2086       // f_gbc
     },
 
+    type: {
+        NIL: 0,
+        LIGHTUSERDATA: 1,
+        BOOLEAN: 2,
+        NUMBER: 3,
+        STRING: 4,
+        THREAD: 5,
+        FUNCTION: 6,
+        TABLE: 7,
+        USERDATA: 8,
+        PROTO: 9,
+        UPVAL: 10,
+        DEADKEY: 11
+    },
+
     GLOBALSINDEX: -10002,
     ENVIRONINDEX: -10001,
     REGISTRYINDEX: -10000,

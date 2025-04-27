@@ -8,9 +8,6 @@ console.log("Hello, world...");
 let Main = {
     SPAWN: 4596,    // f_utf
 
-    TPROTO: 9,
-    TFUNCTION: 6,
-
     scriptContext: 0,
     executorGlobalState: 0,
     inverseCache: 0n,
@@ -105,9 +102,6 @@ let Main = {
     CreateProto(L, protoData) {
         const proto = Lua.alloc(L, 76);
 
-        console.log(`Proto made at ${proto}`);
-        console.log(protoData);
-
         Memory.Zero(proto, 76);
         
         const constants = Lua.alloc(L, protoData.constants.length * 16);
@@ -127,12 +121,12 @@ let Main = {
             switch (protoData.constants[i][0]) {
             case 0: // nil
                 Memory.WriteU64(constants + i * 16, 0n);
-                Memory.WriteU32(constants + i * 16 + 8, 0);
+                Memory.WriteU32(constants + i * 16 + 8, Lua.type.NIL);
 
                 break;
             case 1: // boolean
                 Memory.WriteU32(constants + i * 16, protoData.constants[i][1] + 0);
-                Memory.WriteU32(constants + i * 16 + 8, 3);
+                Memory.WriteU32(constants + i * 16 + 8, Lua.type.BOOLEAN);
 
                 break;
             case 3: // number
@@ -140,12 +134,12 @@ let Main = {
                     // doubles stored as 8-char string, no encryption needed?
                     Memory.WriteU8(constants + i * 16 + j, protoData.constants[i][1].charCodeAt(j));
                 }
-                Memory.WriteU32(constants + i * 16 + 8, 2);
+                Memory.WriteU32(constants + i * 16 + 8, Lua.type.NUMBER);
 
                 break;
             case 4: // string
                 Memory.WriteU32(constants + i * 16, Lua.newlstr(L, protoData.constants[i][1]));
-                Memory.WriteU32(constants + i * 16 + 8, 4);
+                Memory.WriteU32(constants + i * 16 + 8, Lua.type.STRING);
 
                 break;
             }
@@ -182,31 +176,8 @@ let Main = {
         
         Memory.WriteU32(proto + Offsets.PROTO_SOURCE, source - (proto + Offsets.PROTO_SOURCE));
 
-        // check
-        if (((Memory.ReadU32(proto + Offsets.PROTO_SOURCE) + (proto + Offsets.PROTO_SOURCE)) & 0xFFFFFFFF) != source)
-            throw "Main.CreateProto: Decode(proto->source) != source";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_K) + (proto + Offsets.PROTO_K)) & 0xFFFFFFFF) != constants)
-            throw "Main.CreateProto: Decode(proto->k) != constants";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_P) + (proto + Offsets.PROTO_P)) & 0xFFFFFFFF) != protos)
-            throw "Main.CreateProto: Decode(proto->p) != protos";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_UPVALUES) + (proto + Offsets.PROTO_UPVALUES)) & 0xFFFFFFFF) != upvalues)
-            throw "Main.CreateProto: Decode(proto->upvalues) != upvalues";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_LINEINFO) + (proto + Offsets.PROTO_LINEINFO)) & 0xFFFFFFFF) != lineinfo)
-            throw "Main.CreateProto: Decode(proto->lineinfo) != lineinfo";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_LOCVARS) + (proto + Offsets.PROTO_LOCVARS)) & 0xFFFFFFFF) != locvars)
-            throw "Main.CreateProto: Decode(proto->locvars) != locvars";
-
-        if (((Memory.ReadU32(proto + Offsets.PROTO_CODE) + (proto + Offsets.PROTO_CODE)) & 0xFFFFFFFF) != code)
-            throw "Main.CreateProto: Decode(proto->code) != code";
-
         // link at end.. just in case
-        Lua.link(L, proto, Main.TPROTO);
-        // Lua.LockObject(proto);
+        Lua.link(L, proto, Lua.type.PROTO);
 
         return proto;
     },
@@ -222,11 +193,7 @@ let Main = {
         Memory.WriteU32(lcl + Offsets.CLOSURE_ENV, Memory.ReadU32(L + Offsets.LUA_STATE_GLOBALS));
         Memory.WriteU32(lcl + Offsets.LCLOSURE_P, proto - (lcl + Offsets.LCLOSURE_P));
 
-        if (((Memory.ReadU32(lcl + Offsets.LCLOSURE_P) + (lcl + Offsets.LCLOSURE_P)) & 0xFFFFFFFF) != proto)
-            throw "Main.CreateLClosure: Decode(lcl->p) != proto";
-
-        Lua.link(L, lcl, Main.TFUNCTION);
-        //Lua.LockObject(lcl);
+        Lua.link(L, lcl, Lua.type.FUNCTION);
 
         return lcl
     },
@@ -235,7 +202,7 @@ let Main = {
         const state = Main.InitOrGetExploitState();
 
         if (!state) {
-            // maybe error...
+            alert("Main.ExecuteScript: unable to create exploit state");
 
             return;
         }
@@ -264,7 +231,6 @@ let Main = {
 
         // spawn(CreatedFunction)
         Lua.pushcclosure(L, Lua.internal.FindFunctionIndex(Main.SPAWN), 0);
-        // Lua.getglobal(L, "print");
 
         const proto = Main.CreateProto(L, bytecodeData.main);
         const lcl = Main.CreateLClosure(L, proto);
@@ -272,30 +238,62 @@ let Main = {
         const top = Memory.ReadU32(L + Offsets.LUA_STATE_TOP);
 
         Memory.WriteU32(top, lcl);
-        Memory.WriteU32(top + 8, Main.TFUNCTION);
+        Memory.WriteU32(top + 8, Lua.type.FUNCTION);
         Memory.WriteU32(L + Offsets.LUA_STATE_TOP, top + 16);
 
         Lua.pcall(L, 1, 0, 0);
         
         Lua.settop(L, 0);
         Lua.pop(state, 1);
+    },
+
+    WriteError(err) {
+        const state = Main.InitOrGetExploitState();
+
+        if (!state) {
+            alert("Main.WriteError: unable to create exploit state");
+
+            return;
+        }
+
+        const L = state;
+
+        Lua.getglobal(L, "warn");
+        Lua.pushstring(L, err);
+        Lua.pcall(L, 1, 0, 0);
     }
 };
 
 
 window.addEventListener("compileError", ({ detail }) => {
-    // TODO: push error
-});
-
-window.addEventListener("execute", ({ detail }) => {
     if (!Main.FindOrGetScriptContext()) {
-        // TODO: raise error
+        alert("execute: Couldn't find ScriptContext");
 
         return;
     }
 
     if (MainLoop === undefined) {
-        // TODO: raise error
+        alert("execute: Couldn't find main loop");
+
+        return;
+    }
+    
+    MainLoop.queue.push({
+        name: "SendError",
+        func: Main.WriteError,
+        arg: detail.error
+    });
+});
+
+window.addEventListener("execute", ({ detail }) => {
+    if (!Main.FindOrGetScriptContext()) {
+        alert("execute: Couldn't find ScriptContext");
+
+        return;
+    }
+
+    if (MainLoop === undefined) {
+        alert("execute: Couldn't find main loop");
 
         return;
     }
@@ -305,7 +303,11 @@ window.addEventListener("execute", ({ detail }) => {
     let [ result, err ] = Bytecode.Parse(detail.bytecode);
 
     if (err) {
-        // TODO: raise error
+        MainLoop.queue.push({
+            name: "SendError",
+            func: Main.WriteError,
+            arg: err
+        });
 
         return;
     }
