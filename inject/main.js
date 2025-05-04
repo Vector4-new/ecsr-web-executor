@@ -40,7 +40,9 @@ let Main = {
             proto.instructions[i] = Number((BigInt(proto.instructions[i]) * Main.inverseCache) & 0xFFFFFFFFn);
         }
 
-        for (let i = 0; i < proto.protos; i++) {
+        for (let i = 0; i < proto.protos.length; i++) {
+            proto.protos[i].source = proto.source;
+
             Main.EncodeInstructions(proto.protos[i]);
         }
     },
@@ -81,12 +83,12 @@ let Main = {
         if (!GLOBAL_STATE)
             return 0;
 
-        const GT = (Memory.ReadU32(GLOBAL_STATE + Offsets.LUA_STATE_GT) + (GLOBAL_STATE + Offsets.LUA_STATE_GT)) & 0xFFFFFFFF;
+        const GT = Lua.gt(GLOBAL_STATE);
 
         if (!GT)
             return 0;
 
-        Main.inverseCache = Main.Inverse(BigInt((Memory.ReadU32(GT + Offsets.GLOBAL_STATE_CKEY) + (GT + Offsets.GLOBAL_STATE_CKEY)) & 0xFFFFFFFF), 1n << 32n) & 0xFFFFFFFFn;
+        Main.inverseCache = Main.Inverse(BigInt(Memory.ReadU32(GT + Offsets.GLOBAL_STATE_CKEY) + (GT + Offsets.GLOBAL_STATE_CKEY)) & 0xFFFFFFFFn, 1n << 32n) & 0xFFFFFFFFn;
         Main.executorGlobalState = Lua.newthread(GLOBAL_STATE);
 
         if (!Main.executorGlobalState)
@@ -146,7 +148,7 @@ let Main = {
         }
 
         for (let i = 0; i < protoData.localVars.length; i++) {
-            Memory.WriteU32(locvars + i * 12, Lua.newlstr(L, localvars[i][0]));
+            Memory.WriteU32(locvars + i * 12, Lua.newlstr(L, protoData.localVars[i][0]));
             Memory.WriteU32(locvars + i * 12 + 4, protoData.localVars[i][1]);
             Memory.WriteU32(locvars + i * 12 + 8, protoData.localVars[i][2]);
         }
@@ -214,6 +216,7 @@ let Main = {
         Lua.SetThreadIdentityAndSandbox(L, 7);
 
         // stk[-1] = Instance.new("LocalScript")
+        // TODO: maybe push instance function, and set in memory directly, instead of relying on lua
         Lua.getglobal(L, "Instance");
         Lua.getfield(L, -1, "new");
         Lua.pushstring(L, "LocalScript");
@@ -230,7 +233,7 @@ let Main = {
         Lua.settop(L, 0);
 
         // spawn(CreatedFunction)
-        Lua.pushcclosure(L, Lua.internal.FindFunctionIndex(Main.SPAWN), 0);
+        Lua.pushcfunction(L, Lua.internal.FindFunctionIndex(Main.SPAWN));
 
         const proto = Main.CreateProto(L, bytecodeData.main);
         const lcl = Main.CreateLClosure(L, proto);

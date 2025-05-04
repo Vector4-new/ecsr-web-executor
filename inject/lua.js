@@ -26,10 +26,12 @@ const Lua = {
     },
 
     type: {
+        NONE: -1,
+
         NIL: 0,
         LIGHTUSERDATA: 1,
-        BOOLEAN: 2,
-        NUMBER: 3,
+        NUMBER: 2,
+        BOOLEAN: 3,
         STRING: 4,
         THREAD: 5,
         FUNCTION: 6,
@@ -86,12 +88,31 @@ const Lua = {
         wasmExports.free(sharedPtr);
     },
 
+    WriteAndIncrementTop(L, val, tt) {
+        const top = Memory.ReadU32(L + Offsets.LUA_STATE_TOP);
+
+        if (tt == Lua.type.NUMBER) {
+            Memory.WriteF64(top, val);
+        }
+        else {
+            Memory.WriteU32(top, val);
+        }
+
+        Memory.WriteU32(top + 8, tt);
+
+        Memory.WriteU32(L + Offsets.LUA_STATE_TOP, top + 16);
+    },
+
     LockObject(obj) {
         Memory.WriteU8(obj + Offsets.LUA_OBJECT_MARKED, Memory.ReadU8(obj + Offsets.LUA_OBJECT_MARKED) | 0x60);
     },
 
     UnlockObject(obj) {
         Memory.WriteU8(obj + Offsets.LUA_OBJECT_MARKED, Memory.ReadU8(obj + Offsets.LUA_OBJECT_MARKED) & (~0x60));
+    },
+
+    gt(L) {
+        return (Memory.ReadU32(L + Offsets.LUA_STATE_GT) + (L + Offsets.LUA_STATE_GT)) & 0xFFFFFFFF;
     },
 
     newlstr(L, str) {
@@ -113,12 +134,62 @@ const Lua = {
 
     //  f_ebc
     link(L, obj, tt) {
-        const GT = (Memory.ReadU32(L + Offsets.LUA_STATE_GT) + (L + Offsets.LUA_STATE_GT)) & 0xFFFFFFFF;
+        const GT = Lua.gt(L);
 
         Memory.WriteU32(obj, Memory.ReadU32(GT + Offsets.GLOBAL_STATE_ROOTGC));
         Memory.WriteU32(GT + Offsets.GLOBAL_STATE_ROOTGC, obj);
         Memory.WriteU8(obj + Offsets.LUA_OBJECT_MARKED, Memory.ReadU8(GT + Offsets.GLOBAL_STATE_WHITE) & 0x3);
         Memory.WriteU8(obj + Offsets.LUA_OBJECT_TT, tt);
+    },
+
+    // inaccessible, not in function table
+    index2adr(L, index) {
+        if (index <= Lua.REGISTRYINDEX) {
+            switch (index) {
+                case Lua.REGISTRYINDEX: {
+                    return Lua.gt(L) + Offsets.GLOBAL_STATE_REGISTRY;
+                }
+                case Lua.ENVIRONINDEX: {
+                    const ci = Memory.ReadU32(L + Offsets.LUA_STATE_CALLINFO);
+                    const funcPtr = Memory.ReadU32(ci + Offsets.CALLINFO_FUNC);
+                    const closure = Memory.ReadU32(funcPtr);
+
+                    Memory.WriteU32(L + Offsets.LUA_STATE_ENV, Memory.ReadU32(closure + Offsets.CLOSURE_ENV));
+                    Memory.WriteU32(L + Offsets.LUA_STATE_ENV + 8, Lua.type.TABLE);
+
+                    return L + Offsets.LUA_STATE_ENV;
+                }
+                case Lua.GLOBALSINDEX: {
+                    return L + Offsets.LUA_STATE_GLOBALS;
+                }
+                default: {
+                    // upvalue index
+                    const ci = Memory.ReadU32(L + Offsets.LUA_STATE_CALLINFO);
+                    const funcPtr = Memory.ReadU32(ci + Offsets.CALLINFO_FUNC);
+                    const closure = Memory.ReadU32(funcPtr);
+
+                    return closure + Offsets.CLOSURE_UPVALS_BEGIN + (-index - Lua.GLOBALSINDEX - 1) * 4;
+                }
+            }
+        }
+
+        if (index < 0) {            
+            const addr = Memory.ReadU32(L + Offsets.LUA_STATE_TOP) + index * 16;
+
+            if (addr < Memory.ReadU32(L + Offsets.LUA_STATE_BASE)) {
+                return Offsets.LUA_NILOBJECT;
+            }
+
+            return addr;
+        }
+
+        const addr = Memory.ReadU32(L + Offsets.LUA_STATE_BASE) + (index - 1) * 16;
+
+        if (addr >= Memory.ReadU32(L + Offsets.LUA_STATE_TOP)) {
+            return Offsets.LUA_NILOBJECT;
+        }
+
+        return addr;
     },
 
     pcall(L, nargs, nresults, errfunc) {
@@ -137,24 +208,77 @@ const Lua = {
         return wasmImports.invoke_ii(Lua.internal.newThread, L);
     },
 
-    pushstring(L, str) {
-        if (!Lua.internal.pushString) {
-            Lua.internal.pushString = Lua.internal.FindFunctionIndex(Lua.indexes.PUSHSTRING);
-        }
-
-        const addr = Memory.AllocateString(str);        
-
-        wasmImports.invoke_vii(Lua.internal.pushString, L, addr);
-
-        wasmExports.free(addr);
-    },
+    pushnil:     (L) =>    Lua.WriteAndIncrementTop(L, 0, Lua.type.NIL),
+    pushboolean: (L, b) => Lua.WriteAndIncrementTop(L, +b, Lua.type.BOOLEAN),
+    pushnumber:  (L, n) => Lua.WriteAndIncrementTop(L, n, Lua.type.NUMBER),
+    pushstring:  (L, s) => Lua.WriteAndIncrementTop(L, Lua.newlstr(L, s), Lua.type.STRING),
 
     pushcclosure(L, ref, nups) {
-        if (!Lua.internal.pushCClosure) {
-            Lua.internal.pushCClosure = Lua.internal.FindFunctionIndex(Lua.indexes.PUSHCCLOSURE);
+        // we have all the fields, let's just do it ourselves
+        const ccl = Lua.alloc(L, Offsets.CLOSURE_UPVALS_BEGIN + 0x10 * nups);
+
+        Lua.link(L, ccl, Lua.type.FUNCTION);
+
+        Memory.WriteU8(ccl + Offsets.CLOSURE_IS_C, 1);
+        Memory.WriteU8(ccl + Offsets.CLOSURE_NUPVALUES, nups);
+        Memory.WriteU32(ccl + Offsets.CLOSURE_GCLIST, 0);
+        Memory.WriteU32(ccl + Offsets.CLOSURE_ENV, Memory.ReadU32(Lua.index2adr(L, Lua.GLOBALSINDEX)));
+        Memory.WriteU32(ccl + Offsets.CCLOSURE_F, ref - (ccl + Offsets.CCLOSURE_F));
+
+        for (let i = 0; i < nups; i++) {
+            // if nups is e.g. 3, stack indices are
+            // upvals[0]: -3         nups = 3, i = 0
+            // upvals[1]: -2         nups = 3, i = 1
+            // upvals[2]: -1         nups = 3, i = 2
+            // upvals[i]: -nups + i
+
+            const tv = Lua.index2adr(L, -nups + i);
+            const cltv = fn + Offsets.CLOSURE_UPVALS_BEGIN + i * 16;
+
+            // just copy all tvalue bytes, no point checking
+            for (let j = 0; j < 4; j++) {
+                Memory.WriteU32(cltv + j * 4, Memory.ReadU32(tv + j * 4));
+            }
         }
 
-        wasmImports.invoke_viii(Lua.internal.pushCClosure, L, ref, nups);
+        Lua.pop(L, nups);
+        Lua.WriteAndIncrementTop(L, ccl, Lua.type.FUNCTION);
+    },
+
+    pushvalue(L, idx) {
+        const tv = Lua.index2adr(L, idx);
+        const tt = Memory.ReadU32(tv + 8);
+
+        Lua.WriteAndIncrementTop(L, tt == Lua.type.NUMBER ? Memory.ReadF64(tv) : Memory.ReadU32(tv), tt);
+    },
+
+    pushcfunction: (L, r) => Lua.pushcclosure(L, r, 0),
+
+    // can't use type, clashes with field
+    // man, that was ass to debug LOL
+    objtype(L, idx) {
+        const tv = Lua.index2adr(L, idx);
+
+        if (tv == Offsets.LUA_NILOBJECT) {
+            return Lua.type.NONE;
+        }
+
+        return Memory.ReadU32(tv + 8);
+    },
+
+    isnoneornil: (L, idx) => Lua.objtype(L, idx) == Lua.type.NONE || Lua.objtype(L, idx) == Lua.type.NIL,
+    isnumber:    (L, idx) => Lua.objtype(L, idx) == Lua.type.NUMBER,
+    isboolean:   (L, idx) => Lua.objtype(L, idx) == Lua.type.BOOLEAN,
+    isstring:    (L, idx) => Lua.objtype(L, idx) == Lua.type.STRING,
+
+    tonumber:  (L, idx) => Memory.ReadF64(Lua.index2adr(L, idx)),
+    toboolean: (L, idx) => !!Memory.ReadU32(Lua.index2adr(L, idx)),
+    topointer: (L, idx) => Memory.ReadU32(Lua.index2adr(L, idx)),
+    
+    tostring(L, idx) {
+        const tsv = Memory.ReadU32(Lua.index2adr(L, idx));
+
+        return Memory.ReadString(tsv + Offsets.TSTRING_DATA, Memory.ReadU32(tsv + Offsets.TSTRING_LEN));
     },
 
     setfield(L, idx, field) {
@@ -202,7 +326,7 @@ const Lua = {
     },
 
     realloc(L, block, osize, nsize) {
-        const GT = (Memory.ReadU32(L + Offsets.LUA_STATE_GT) + (L + Offsets.LUA_STATE_GT)) & 0xFFFFFFFF;
+        const GT = Lua.gt(L);
 
         return wasmImports.invoke_iiiii(Memory.ReadU32(GT + Offsets.GLOBAL_STATE_FREALLOC), Memory.ReadU32(GT + Offsets.GLOBAL_STATE_USERDATA), block, osize, nsize);
     },
