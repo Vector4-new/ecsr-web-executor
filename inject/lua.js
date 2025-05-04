@@ -15,13 +15,9 @@ const Lua = {
     indexes: {
         PCALL: 2004,        // f_cyb
         NEWTHREAD: 1958,    // f_iwb
-        PUSHCCLOSURE: 1986, // f_kxb
-        SETFIELD: 1998,     // f_wxb    // 1997 settable
-        GETFIELD: 1991,     // f_pxb    // 1990 gettable
-        SETTOP: 1960,       // f_kwb
         SANDBOX: 4659,      // f_fwf
-        PUSHSTRING: 1984,
-
+        SETTABLE: 1997,
+        GETTABLE: 1990,
         NEWLSTR: 2086       // f_gbc
     },
 
@@ -49,11 +45,8 @@ const Lua = {
     internal: {
         pcall: 0,
         newThread: 0,
-        pushCClosure: 0,
-        pushString: 0,
-        setField: 0,
-        getField: 0,
-        setTop: 0,
+        setTable: 0,
+        getTable: 0,
         sandbox: 0,
         newLStr: 0,
 
@@ -274,56 +267,87 @@ const Lua = {
     tonumber:  (L, idx) => Memory.ReadF64(Lua.index2adr(L, idx)),
     toboolean: (L, idx) => !!Memory.ReadU32(Lua.index2adr(L, idx)),
     topointer: (L, idx) => Memory.ReadU32(Lua.index2adr(L, idx)),
-    
+
     tostring(L, idx) {
         const tsv = Memory.ReadU32(Lua.index2adr(L, idx));
 
         return Memory.ReadString(tsv + Offsets.TSTRING_DATA, Memory.ReadU32(tsv + Offsets.TSTRING_LEN));
     },
 
-    setfield(L, idx, field) {
-        if (!Lua.internal.setField) {
-            Lua.internal.setField = Lua.internal.FindFunctionIndex(Lua.indexes.SETFIELD);
+    settable(L, idx) {
+        if (!Lua.internal.setTable) {
+            Lua.internal.setTable = Lua.internal.FindFunctionIndex(Lua.indexes.SETTABLE);
         }
 
-        const str = Memory.AllocateString(field);
+        wasmImports.invoke_vii(Lua.internal.setTable, L, idx);
+    },
 
-        wasmImports.invoke_viii(Lua.internal.setField, L, idx, str);
+    gettable(L, idx) {
+        if (!Lua.internal.getTable) {
+            Lua.internal.getTable = Lua.internal.FindFunctionIndex(Lua.indexes.GETTABLE);
+        }
 
-        wasmExports.free(str);
+        wasmImports.invoke_vii(Lua.internal.getTable, L, idx);
+    },
+
+    setfield(L, idx, field) {
+        // we will push shit, so fix up to make sure
+        if (idx < 0 && idx > Lua.REGISTRYINDEX) {
+            idx -= 2;
+        }
+
+        Lua.pushstring(L, field);
+        Lua.pushvalue(L, -2);
+        Lua.settable(L, idx);
+        Lua.pop(L, 1);
     },
 
     getfield(L, idx, field) {
-        if (!Lua.internal.getField) {
-            Lua.internal.getField = Lua.internal.FindFunctionIndex(Lua.indexes.GETFIELD);
+        if (idx < 0 && idx > Lua.REGISTRYINDEX) {
+            idx--;
         }
 
-        const str = Memory.AllocateString(field);
-
-        wasmImports.invoke_viii(Lua.internal.getField, L, idx, str);
-
-        wasmExports.free(str);
-    },
-
-    getglobal(L, global) {
-        Lua.getfield(L, Lua.GLOBALSINDEX, global);
+        Lua.pushstring(L, field);
+        Lua.gettable(L, idx);
     },
 
     setglobal(L, global) {
         Lua.setfield(L, Lua.GLOBALSINDEX, global);
     },
 
+    getglobal(L, global) {
+        Lua.getfield(L, Lua.GLOBALSINDEX, global);
+    },
+
     settop(L, top) {
-        if (!Lua.internal.setTop) {
-            Lua.internal.setTop = Lua.internal.FindFunctionIndex(Lua.indexes.SETTOP);
+        const elements = Lua.gettop(L);
+
+        if (top == elements) {
+            return;
         }
 
-        wasmImports.invoke_vii(Lua.internal.setTop, L, top);
+        // negative values are based off current amount of elements already on stack
+        if (top < 0) {
+            // + top because its negative
+            return Lua.settop(L, elements + top + 1);
+        }
+
+        // decrease number of elements if top < elements
+        //   i.e. 10 elements -> 5 elements, 5 < 10 == true
+        if (top < elements) {
+            Memory.WriteU32(L + Offsets.LUA_STATE_TOP, Memory.ReadU32(L + Offsets.LUA_STATE_BASE) + top * 16);
+
+            return;
+        }
+
+        // otherwise, increase number of elements
+        for (let i = elements; i < top; i++) {
+            Lua.pushnil(L);
+        }
     },
 
-    pop(L, nelems) {
-        Lua.settop(L, -nelems - 1);
-    },
+    gettop: (L) => (Memory.ReadU32(L + Offsets.LUA_STATE_TOP) - Memory.ReadU32(L + Offsets.LUA_STATE_BASE)) >> 4,
+    pop:    (L, n) => Lua.settop(L, -n - 1),
 
     realloc(L, block, osize, nsize) {
         const GT = Lua.gt(L);
@@ -331,10 +355,5 @@ const Lua = {
         return wasmImports.invoke_iiiii(Memory.ReadU32(GT + Offsets.GLOBAL_STATE_FREALLOC), Memory.ReadU32(GT + Offsets.GLOBAL_STATE_USERDATA), block, osize, nsize);
     },
 
-    alloc(L, size) {
-        if (size === 0)
-            return 0;
-
-        return Lua.realloc(L, 0, 0, size);
-    }
+    alloc: (L, s) => s == 0 ? 0 : Lua.realloc(L, 0, 0, s)
 };

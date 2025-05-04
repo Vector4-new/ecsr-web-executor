@@ -2,9 +2,6 @@
 
 console.log("[Main] init");
 
-// const GLOBAL_STATE = ReadU32(possibleSCs[0] + SCRIPT_CONTEXT_GLOBAL_STATE);
-console.log("Hello, world...");
-
 let Main = {
     SPAWN: 4596,    // f_utf
 
@@ -97,14 +94,14 @@ let Main = {
         Lua.LockObject(Main.executorGlobalState);
         Lua.SetThreadIdentityAndSandbox(Main.executorGlobalState, 7);
         Lua.setfield(GLOBAL_STATE, Lua.REGISTRYINDEX, "_GLOBAL_STATE_DO_NOT_REMOVE_");
-
+        
         return Main.executorGlobalState;
     },
-
+    
     CreateProto(L, protoData) {
         const proto = Lua.alloc(L, 76);
-
-        Memory.Zero(proto, 76);
+        
+        Lua.link(L, proto, Lua.type.PROTO);
         
         const constants = Lua.alloc(L, protoData.constants.length * 16);
         const protos = Lua.alloc(L, protoData.protos.length * 4);
@@ -153,8 +150,6 @@ let Main = {
             Memory.WriteU32(locvars + i * 12 + 8, protoData.localVars[i][2]);
         }
 
-        Memory.WriteU32(proto + Offsets.PROTO_GCLIST, 0);
-
         Memory.WriteU32(proto + Offsets.PROTO_K, constants - (proto + Offsets.PROTO_K));
         Memory.WriteU32(proto + Offsets.PROTO_SIZEK, protoData.constants.length);
         Memory.WriteU32(proto + Offsets.PROTO_P, protos - (proto + Offsets.PROTO_P));
@@ -171,15 +166,12 @@ let Main = {
         Memory.WriteU32(proto + Offsets.PROTO_LINEINFO, lineinfo - (proto + Offsets.PROTO_LINEINFO));
         Memory.WriteU32(proto + Offsets.PROTO_SIZELOCVARS, protoData.localVars.length);
         Memory.WriteU32(proto + Offsets.PROTO_LOCVARS, locvars - (proto + Offsets.PROTO_LOCVARS));
+        Memory.WriteU32(proto + Offsets.PROTO_SOURCE, source - (proto + Offsets.PROTO_SOURCE));
 
         // unused
         Memory.WriteU32(proto + Offsets.PROTO_LINEDEFINED, 0);
         Memory.WriteU32(proto + Offsets.PROTO_LASTLINEDEFINED, 0);
-        
-        Memory.WriteU32(proto + Offsets.PROTO_SOURCE, source - (proto + Offsets.PROTO_SOURCE));
-
-        // link at end.. just in case
-        Lua.link(L, proto, Lua.type.PROTO);
+        Memory.WriteU32(proto + Offsets.PROTO_GCLIST, 0);
 
         return proto;
     },
@@ -187,7 +179,7 @@ let Main = {
     CreateLClosure(L, proto) {
         const lcl = Lua.alloc(L, 0x14);
 
-        Memory.Zero(lcl, 0x14);
+        Lua.link(L, lcl, Lua.type.FUNCTION);
 
         Memory.WriteU8(lcl + Offsets.CLOSURE_IS_C, 0);
         Memory.WriteU8(lcl + Offsets.CLOSURE_NUPVALUES, 0);
@@ -195,9 +187,7 @@ let Main = {
         Memory.WriteU32(lcl + Offsets.CLOSURE_ENV, Memory.ReadU32(L + Offsets.LUA_STATE_GLOBALS));
         Memory.WriteU32(lcl + Offsets.LCLOSURE_P, proto - (lcl + Offsets.LCLOSURE_P));
 
-        Lua.link(L, lcl, Lua.type.FUNCTION);
-
-        return lcl
+        return lcl;
     },
 
     ExecuteScript(bytecodeData) {
@@ -234,16 +224,7 @@ let Main = {
 
         // spawn(CreatedFunction)
         Lua.pushcfunction(L, Lua.internal.FindFunctionIndex(Main.SPAWN));
-
-        const proto = Main.CreateProto(L, bytecodeData.main);
-        const lcl = Main.CreateLClosure(L, proto);
-
-        const top = Memory.ReadU32(L + Offsets.LUA_STATE_TOP);
-
-        Memory.WriteU32(top, lcl);
-        Memory.WriteU32(top + 8, Lua.type.FUNCTION);
-        Memory.WriteU32(L + Offsets.LUA_STATE_TOP, top + 16);
-
+        Lua.WriteAndIncrementTop(L, Main.CreateLClosure(L, Main.CreateProto(L, bytecodeData.main)), Lua.type.FUNCTION);
         Lua.pcall(L, 1, 0, 0);
         
         Lua.settop(L, 0);
