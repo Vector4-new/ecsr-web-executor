@@ -3,7 +3,8 @@
 console.log("[Main] init");
 
 let Main = {
-    SPAWN: 4596,    // f_utf
+    SPAWN: 4596,        // f_utf
+    INSTANCE_NEW: 4168, // f_idf
 
     scriptContext: 0,
     executorGlobalState: 0,
@@ -206,16 +207,15 @@ let Main = {
         Lua.SetThreadIdentityAndSandbox(L, 7);
 
         // stk[-1] = Instance.new("LocalScript")
-        // TODO: maybe push instance function, and set in memory directly, instead of relying on lua
-        Lua.getglobal(L, "Instance");
-        Lua.getfield(L, -1, "new");
+        // we don't know state of env, this is safer
+        Lua.pushcfunction(L, Lua.internal.FindFunctionIndex(Main.INSTANCE_NEW));
         Lua.pushstring(L, "LocalScript");
         Lua.pcall(L, 1, 1);
+        
+        const instance = Memory.ReadU32(Lua.topointer(L, -1) + Offsets.UDATA_DATA_BEGIN);
 
         // substr(1) to get rid of = at start
-        // stk[-1].Name = bytecodeData.main.source.substr(1)
-        Lua.pushstring(L, bytecodeData.main.source.substr(1));
-        Lua.setfield(L, -2, "Name");
+        Instance.SetName(instance, bytecodeData.main.source.substr(1));
 
         // script = stk[-1]
         Lua.setglobal(L, "script");

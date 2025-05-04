@@ -67,5 +67,7 @@ const Offsets = {
     CLOSURE_UPVALS_BEGIN: 0x14,
 
     TSTRING_LEN: 0x8,
-    TSTRING_DATA: 0x10
+    TSTRING_DATA: 0x10,
+
+    UDATA_DATA_BEGIN: 0x18
 };

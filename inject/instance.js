@@ -9,6 +9,20 @@ const Instance = {
         return Memory.ReadStdString(ptr);
     },
 
+    SetName(addr, name) {
+        // overwrite the whole string. doesnt bother with embedding
+        const nameAddr = Memory.AllocateString(name);
+        const stdStr = Memory.ReadU32(addr + Offsets.INSTANCE_NAME);
+
+        if (Memory.ReadU8(stdStr + 11) == 0x80) {
+            wasmExports.free(Memory.ReadU32(stdStr));
+        }
+
+        Memory.WriteU32(stdStr, nameAddr);
+        Memory.WriteU32(stdStr + 4, name.length);
+        Memory.WriteU8(stdStr + 11, 0x80);
+    },
+
     GetClassName(addr) {
         const descriptor = Memory.ReadU32(addr + Offsets.INSTANCE_DESCRIPTOR);
         const rbxName = Memory.ReadU32(descriptor + Offsets.DESCRIPTOR_NAME);
