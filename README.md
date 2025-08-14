@@ -9,6 +9,12 @@ Not responsible if this gets you banned.
 Won't be maintained; it's already enough of a headache to develop.  
 Has custom functions, but not really.  
 
+## Loading
+Turn on developer mode.  
+Select "Load unpacked," and select the folder.  
+Make sure the extension is turned on.  
+When you join a game, just open the extension window from the extensions list and run your code.  
+
 ## Updating
 This was and is a fucking nightmare to work on.  
 Good luck.  
