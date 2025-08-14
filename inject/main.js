@@ -54,7 +54,7 @@ let Main = {
         if (Main.scriptContext)
             return Main.scriptContext;
 
-        if (GROWABLE_HEAP_U32 === undefined)
+        if (typeof GROWABLE_HEAP_U32 == "undefined")
             return 0;
 
         for (let i = 0; i < GROWABLE_HEAP_U32().length; i++) {
@@ -96,6 +96,8 @@ let Main = {
         Lua.SetThreadIdentityAndSandbox(Main.executorGlobalState, 7);
         Lua.setfield(GLOBAL_STATE, Lua.REGISTRYINDEX, "_GLOBAL_STATE_DO_NOT_REMOVE_");
         
+        Custom.InstallFunctions(Main.executorGlobalState);
+
         return Main.executorGlobalState;
     },
     
@@ -106,7 +108,7 @@ let Main = {
         
         const constants = Lua.alloc(L, protoData.constants.length * 16);
         const protos = Lua.alloc(L, protoData.protos.length * 4);
-        const code = Lua.alloc(L, protoData.instructions.length * 4);
+        const code = Lua.alloc(L, (protoData.instructions.length + 1) * 4);
         const upvalues = Lua.alloc(L, protoData.upvalueNames.length * 4);
         const lineinfo = Lua.alloc(L, protoData.lineInfo.length * 4);
         const locvars = Lua.alloc(L, protoData.localVars.length * 12);
@@ -117,6 +119,9 @@ let Main = {
         protoData.protos.forEach((v, k) => Memory.WriteU32(protos + k * 4, Main.CreateProto(L, v)));
         protoData.upvalueNames.forEach((v, k) => Memory.WriteU32(upvalues + k * 4, Lua.newlstr(L, v)));
         
+        // tag for checkclosure
+        Memory.WriteU32(code + protoData.instructions.length * 4, 0xFFFFFFFF);
+
         for (let i = 0; i < protoData.constants.length; i++) {
             switch (protoData.constants[i][0]) {
             case 0: // nil
@@ -185,7 +190,7 @@ let Main = {
         Memory.WriteU8(lcl + Offsets.CLOSURE_IS_C, 0);
         Memory.WriteU8(lcl + Offsets.CLOSURE_NUPVALUES, 0);
         Memory.WriteU32(lcl + Offsets.CLOSURE_GCLIST, 0);
-        Memory.WriteU32(lcl + Offsets.CLOSURE_ENV, Memory.ReadU32(L + Offsets.LUA_STATE_GLOBALS));
+        Memory.WriteU32(lcl + Offsets.CLOSURE_ENV, Memory.ReadU32(Lua.index2adr(L, Lua.GLOBALSINDEX)));
         Memory.WriteU32(lcl + Offsets.LCLOSURE_P, proto - (lcl + Offsets.LCLOSURE_P));
 
         return lcl;
@@ -251,13 +256,13 @@ let Main = {
 
 window.addEventListener("compileError", ({ detail }) => {
     if (!Main.FindOrGetScriptContext()) {
-        alert("execute: Couldn't find ScriptContext");
+        alert("CompileError: Couldn't find ScriptContext");
 
         return;
     }
 
-    if (MainLoop === undefined) {
-        alert("execute: Couldn't find main loop");
+    if (typeof MainLoop == "undefined") {
+        alert("CompileError: Couldn't find main loop");
 
         return;
     }
@@ -271,13 +276,13 @@ window.addEventListener("compileError", ({ detail }) => {
 
 window.addEventListener("execute", ({ detail }) => {
     if (!Main.FindOrGetScriptContext()) {
-        alert("execute: Couldn't find ScriptContext");
+        alert("Execute: Couldn't find ScriptContext");
 
         return;
     }
 
-    if (MainLoop === undefined) {
-        alert("execute: Couldn't find main loop");
+    if (typeof MainLoop == "undefined") {
+        alert("Execute: Couldn't find main loop");
 
         return;
     }
@@ -304,3 +309,26 @@ window.addEventListener("execute", ({ detail }) => {
         arg: result
     });
 });
+
+// hook early enough
+// we need this for custom functions, you can't set wasmTable indexes because they just get reverted for some odd reason...
+let resumeMainLoopValue = undefined;
+
+setTimeout(() => {
+    Object.defineProperty(Module, "resumeMainLoop", {
+        get: () => resumeMainLoopValue,
+        set: (v) => {
+            if (resumeMainLoopValue !== undefined) {
+                console.log("[Main] ??? set twice");
+    
+                return v;
+            }
+    
+            resumeMainLoopValue = v;
+    
+            Custom.Init();
+    
+            return v;
+        }
+    });
+}, 20);

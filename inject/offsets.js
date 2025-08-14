@@ -64,10 +64,12 @@ const Offsets = {
     CLOSURE_ENV: 0xC,
     LCLOSURE_P: 0x10,
     CCLOSURE_F: 0x10,
-    CLOSURE_UPVALS_BEGIN: 0x14,
+    CLOSURE_UPVALS_BEGIN: 0x18, // should be +0x14, but NOPE. probably alignment of the last TValue. this is c only btw if you are getting upvals of a Lclosure wtf is wrong with you
 
     TSTRING_LEN: 0x8,
     TSTRING_DATA: 0x10,
 
-    UDATA_DATA_BEGIN: 0x18
+    UDATA_DATA_BEGIN: 0x18,
+
+    TABLE_READONLY: 0x6
 };

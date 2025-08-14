@@ -2,23 +2,16 @@
 
 console.log("[Lua] init");
 
-// not ref :(
-// $func1944 => lua_getfield
-
-// FUNCREF :)
-// $func1990 => lua_gettable 
-// $func2004 => lua_pcall
-// $func1984 => lua_pushstring
-// $func1958 => lua_newthread
-
 const Lua = {
     indexes: {
         PCALL: 2004,        // f_cyb
         NEWTHREAD: 1958,    // f_iwb
         SANDBOX: 4659,      // f_fwf
-        SETTABLE: 1997,
-        GETTABLE: 1990,
-        NEWLSTR: 2086       // f_gbc
+        SETTABLE: 1997,     // f_vxb
+        GETTABLE: 1990,     // f_oxb
+        NEWLSTR: 2086,      // f_gbc
+        PUSHCCLOSURE: 1986, // f_kxb
+        CREATETABLE: 1994   // f_sxb
     },
 
     type: {
@@ -49,6 +42,8 @@ const Lua = {
         getTable: 0,
         sandbox: 0,
         newLStr: 0,
+        pushCClosure: 0,
+        createTable: 0,
 
         FindFunctionIndex(index) {
             for (let i = 0; i < wasmTable.length; i++) {
@@ -161,7 +156,7 @@ const Lua = {
                     const funcPtr = Memory.ReadU32(ci + Offsets.CALLINFO_FUNC);
                     const closure = Memory.ReadU32(funcPtr);
 
-                    return closure + Offsets.CLOSURE_UPVALS_BEGIN + (-index - Lua.GLOBALSINDEX - 1) * 4;
+                    return closure + Offsets.CLOSURE_UPVALS_BEGIN + (index - Lua.GLOBALSINDEX + 1) * 16;
                 }
             }
         }
@@ -206,6 +201,7 @@ const Lua = {
     pushnumber:  (L, n) => Lua.WriteAndIncrementTop(L, n, Lua.type.NUMBER),
     pushstring:  (L, s) => Lua.WriteAndIncrementTop(L, Lua.newlstr(L, s), Lua.type.STRING),
 
+    /*
     pushcclosure(L, ref, nups) {
         // we have all the fields, let's just do it ourselves
         const ccl = Lua.alloc(L, Offsets.CLOSURE_UPVALS_BEGIN + 0x10 * nups);
@@ -216,7 +212,7 @@ const Lua = {
         Memory.WriteU8(ccl + Offsets.CLOSURE_NUPVALUES, nups);
         Memory.WriteU32(ccl + Offsets.CLOSURE_GCLIST, 0);
         Memory.WriteU32(ccl + Offsets.CLOSURE_ENV, Memory.ReadU32(Lua.index2adr(L, Lua.GLOBALSINDEX)));
-        Memory.WriteU32(ccl + Offsets.CCLOSURE_F, ref - (ccl + Offsets.CCLOSURE_F));
+        Memory.Write32(ccl + Offsets.CCLOSURE_F, ref - (ccl + Offsets.CCLOSURE_F));
 
         for (let i = 0; i < nups; i++) {
             // if nups is e.g. 3, stack indices are
@@ -226,7 +222,7 @@ const Lua = {
             // upvals[i]: -nups + i
 
             const tv = Lua.index2adr(L, -nups + i);
-            const cltv = fn + Offsets.CLOSURE_UPVALS_BEGIN + i * 16;
+            const cltv = ccl + Offsets.CLOSURE_UPVALS_BEGIN + i * 16;
 
             // just copy all tvalue bytes, no point checking
             for (let j = 0; j < 4; j++) {
@@ -236,6 +232,15 @@ const Lua = {
 
         Lua.pop(L, nups);
         Lua.WriteAndIncrementTop(L, ccl, Lua.type.FUNCTION);
+    },
+    */
+
+    pushcclosure(L, ref, nups) {
+        if (!Lua.internal.pushCClosure) {
+            Lua.internal.pushCClosure = Lua.internal.FindFunctionIndex(Lua.indexes.PUSHCCLOSURE);
+        }
+
+        wasmImports.invoke_viii(Lua.internal.pushCClosure, L, ref, nups);
     },
 
     pushvalue(L, idx) {
@@ -348,6 +353,16 @@ const Lua = {
 
     gettop: (L) => (Memory.ReadU32(L + Offsets.LUA_STATE_TOP) - Memory.ReadU32(L + Offsets.LUA_STATE_BASE)) >> 4,
     pop:    (L, n) => Lua.settop(L, -n - 1),
+
+    createtable(L, narray, nrec) {
+        if (!Lua.internal.createTable) {
+            Lua.internal.createTable = Lua.internal.FindFunctionIndex(Lua.indexes.CREATETABLE);
+        }
+
+        wasmImports.invoke_viii(Lua.internal.createTable, L, narray, nrec);
+    },
+
+    newtable: (L) => Lua.createtable(L, 0, 0),
 
     realloc(L, block, osize, nsize) {
         const GT = Lua.gt(L);

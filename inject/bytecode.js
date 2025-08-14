@@ -54,19 +54,19 @@ const Bytecode = {
             return [ null, "unsupported bytecode format" ];
 
         if (headerData.intSize !== Bytecode.HEADER_INT_SIZE)
-            return [null, "incorrect int size" ];
+            return [ null, "incorrect int size" ];
 
         if (headerData.sizetSize !== Bytecode.HEADER_SIZE_T_SIZE)
-            return [null, "incorrect size_t size" ];
+            return [ null, "incorrect size_t size" ];
 
         if (headerData.instructionSize !== Bytecode.HEADER_INSTRUCTION_SIZE)
-            return [null, "incorrect instruction size" ];
+            return [ null, "incorrect instruction size" ];
 
         if (headerData.numberSize !== Bytecode.HEADER_NUMBER_SIZE)
-            return [null, "incorrect number size" ];
+            return [ null, "incorrect number size" ];
 
         if (headerData.numberType !== Bytecode.HEADER_NUMBER_TYPE)
-            return [null, "incorrect number type" ];
+            return [ null, "incorrect number type" ];
 
         return [ headerData, header.substr(12) ];
     },

@@ -29,7 +29,7 @@
         },
         {
             "matches": [ "https://ecsr.io/WebPlayer*" ],
-            "js": [ "inject/offsets.js", "inject/bytecode.js", "inject/memory.js", "inject/instance.js", "inject/lua.js", "inject/main.js" ],
+            "js": [ "inject/offsets.js", "inject/bytecode.js", "inject/memory.js", "inject/instance.js", "inject/lua.js", "inject/custom.js", "inject/main.js" ],
             "world": "MAIN"
         }
     ]

@@ -24,6 +24,9 @@ chrome.runtime.onMessage.addListener(({ type, bytecode, source, error }, sender,
 
 // loadstring
 window.addEventListener("requestCompile", ({ detail }) => {
+    const id = detail.id;
+    console.log(detail);
+    
     chrome.runtime.sendMessage({
         type: "compile",
         code: detail.code,
@@ -32,7 +35,7 @@ window.addEventListener("requestCompile", ({ detail }) => {
         console.log(data);
 
         const event = new CustomEvent("compileResponse", { detail: {
-            id: detail.id,
+            id: id,
             result: data.bytecode
         }});
 
